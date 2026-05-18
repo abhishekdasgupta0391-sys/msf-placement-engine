@@ -1379,13 +1379,13 @@ function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
     el.addEventListener('mouseenter', ()=>{
       orb.style.width='20px'; orb.style.height='20px';
       orb.style.boxShadow='0 0 18px 4px rgba(26,159,212,0.9),0 0 40px 8px rgba(26,159,212,0.45)';
-      ring.style.width='52px';
+      if (typeof ring !== 'undefined' && ring) ring.style.width='52px';
 
     });
     el.addEventListener('mouseleave', ()=>{
       orb.style.width='14px'; orb.style.height='14px';
       orb.style.boxShadow='0 0 10px 2px rgba(26,159,212,0.7),0 0 22px 4px rgba(26,159,212,0.3)';
-      ring.style.width='34px';
+      if (typeof ring !== 'undefined' && ring) ring.style.width='34px';
 
     });
   });
@@ -1554,13 +1554,32 @@ renderTable();
     if (data.type === 'PE_CONTEXT') applyContext(data, event.origin);
   });
 
-  /* Bootstrap: detect Salesforce launch and skip the login screen. */
-  function bootstrap(){
-    if (window.opener && !window.opener.closed) {
-      state.sfMode = true;
-      if (typeof showPage === 'function') showPage('page-dashboard');
-      announceReady();
+  /* Bootstrap: detect Salesforce launch and skip the login screen.
+     Detection uses two signals so the integration survives even when
+     Salesforce LWS strips window.opener from the popup:
+       1. window.opener is non-null and reachable, OR
+       2. URL query parameter sf=1 is present (set by the LWC). */
+  function isLaunchedFromSalesforce(){
+    try {
+      if (window.opener && !window.opener.closed) return true;
+    } catch (e) { /* cross-origin opener access denied */ }
+    try {
+      var params = new URLSearchParams(window.location.search);
+      return params.get('sf') === '1';
+    } catch (e) {
+      return false;
     }
+  }
+  function bootstrap(){
+    if (!isLaunchedFromSalesforce()) return;
+    state.sfMode = true;
+    if (typeof showPage === 'function') {
+      showPage('page-dashboard');
+    } else {
+      var login = document.getElementById('page-login');
+      if (login) login.style.display = 'none';
+    }
+    announceReady();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootstrap);
