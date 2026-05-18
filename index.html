@@ -1448,11 +1448,14 @@ renderTable();
   }
 
   function announceReady(){
+    console.log('[Placement Engine] sfMode active, attempting PE_READY. window.opener=' + (window.opener ? 'present' : 'null'));
     try {
       if (window.opener && !window.opener.closed) {
         window.opener.postMessage({ type: 'PE_READY' }, '*');
       }
-    } catch (e) { /* opener may have closed */ }
+    } catch (e) {
+      console.log('[Placement Engine] PE_READY send failed:', e && e.message);
+    }
   }
 
   function applyContext(payload, origin){
@@ -1591,12 +1594,38 @@ renderTable();
   };
 
   /* postMessage receiver. */
+  var contextApplied = false;
   window.addEventListener('message', function(event){
-    if (!hostAllowed(event.origin)) return;
+    console.log('[Placement Engine] message received from ' + event.origin, event.data && event.data.type);
+    if (!hostAllowed(event.origin)) {
+      console.log('[Placement Engine] origin rejected: ' + event.origin);
+      return;
+    }
     var data = event.data;
     if (!data || typeof data !== 'object') return;
-    if (data.type === 'PE_CONTEXT') applyContext(data, event.origin);
+    if (data.type === 'PE_CONTEXT') {
+      if (contextApplied) {
+        /* LWC may push PE_CONTEXT repeatedly; ack again and exit. */
+        sendAck(event.origin);
+        return;
+      }
+      contextApplied = true;
+      applyContext(data, event.origin);
+      sendAck(event.origin);
+    }
   });
+
+  function sendAck(targetOrigin){
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: 'PE_CONTEXT_ACK' }, targetOrigin || '*');
+      } else {
+        console.log('[Placement Engine] window.opener unavailable - cannot send ACK');
+      }
+    } catch (e) {
+      console.log('[Placement Engine] ACK send failed:', e && e.message);
+    }
+  }
 
   /* Bootstrap: detect Salesforce launch and skip the login screen.
      Detection uses two signals so the integration survives even when
