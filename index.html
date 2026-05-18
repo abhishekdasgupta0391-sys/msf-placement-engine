@@ -1489,10 +1489,16 @@ renderTable();
         occupancy_pct:  s.occupancy_pct
       };
     });
-    renderTable();
     selectedCandidateIdx = 0;
     currentCandidate     = candidates[0];
-    setTimeout(function(){ startAIEngine(); }, 250);
+    /* In Salesforce mode we skip the dashboard candidate list entirely
+       and jump straight into the AI engine for the contact that the
+       case worker clicked on in Salesforce. The dashboard re-render is
+       suppressed so the case worker never sees the intermediate page. */
+    if (typeof renderTable === 'function') {
+        try { renderTable(); } catch (e) { /* keep going regardless */ }
+    }
+    startAIEngine();
   }
 
   function sendSelection(){
