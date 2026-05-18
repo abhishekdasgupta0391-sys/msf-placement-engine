@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSF Singapore · Shelter Home Placement Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #04070f;
+  --bg2:       #080d1a;
+  --bg3:       #0c1221;
+  --surf:      rgba(255,255,255,0.05);
+  --surf2:     rgba(255,255,255,0.09);
+  --surf3:     rgba(255,255,255,0.10);
+  --bdr:       rgba(255,255,255,0.10);
+  --bdr2:      rgba(255,255,255,0.20);
+  --bdr3:      rgba(255,255,255,0.32);
+  --t1:        #eef2fa;
+  --t2:        #7d8fa8;
+  --t3:        #3d4d63;
+  --accent:    #1a9fd4;
+  --accent2:   #0077BC;
+  --accent-bg: rgba(0,119,188,0.14);
+  --green:     #00c47a;
+  --green-bg:  rgba(0,152,102,0.14);
+  --amber:     #f5b84a;
+  --amber-bg:  rgba(245,184,74,0.10);
+  --red:       #ff3d5a;
+  --red-bg:    rgba(255,61,90,0.10);
+  --violet:    #9d7ffc;
+  --violet-bg: rgba(157,127,252,0.10);
+  --r1: 4px; --r2: 8px; --r3: 12px;
+  --font-d: 'Archivo Black', sans-serif;
+  --font-b: 'Archivo', sans-serif;
+  --font-m: 'JetBrains Mono', monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;}
+*{cursor:none !important;}
+@keyframes orb-idle-pulse{0%,100%{box-shadow:0 0 10px 2px rgba(26,159,212,0.7),0 0 22px 4px rgba(26,159,212,0.3);}50%{box-shadow:0 0 16px 4px rgba(26,159,212,0.9),0 0 36px 8px rgba(26,159,212,0.4);}}
+
+body{
+  background:var(--bg);color:var(--t1);
+  font-family:var(--font-b);font-size:1rem;line-height:1.5;
+  min-height:100vh;overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ─── ANIMATED BG ─────────────────────────────────────── */
+.bg-canvas{
+  position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;
+}
+.bg-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(0,200,240,0.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,200,240,0.025) 1px,transparent 1px);
+  background-size:48px 48px;
+  animation:grid-drift 18s linear infinite;
+}
+@keyframes grid-drift{
+  0%{transform:translate(0,0)}
+  100%{transform:translate(48px,48px)}
+}
+.bg-glow-1{
+  position:absolute;width:900px;height:700px;
+  top:-200px;left:-200px;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(0,200,240,0.06) 0%,transparent 65%);
+  animation:glow-drift1 20s ease-in-out infinite alternate;
+}
+.bg-glow-2{
+  position:absolute;width:700px;height:600px;
+  bottom:-150px;right:-100px;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(157,127,252,0.05) 0%,transparent 65%);
+  animation:glow-drift2 25s ease-in-out infinite alternate;
+}
+.bg-sweep{
+  position:absolute;inset:0;
+  background:linear-gradient(105deg,transparent 40%,rgba(0,200,240,0.02) 50%,transparent 60%);
+  background-size:200% 100%;
+  animation:bg-sweep 8s linear infinite;
+}
+@keyframes glow-drift1{0%{transform:translate(0,0)}100%{transform:translate(80px,60px)}}
+@keyframes glow-drift2{0%{transform:translate(0,0)}100%{transform:translate(-60px,-80px)}}
+@keyframes bg-sweep{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ─── CURSOR ──────────────────────────────────────────── */
+
+
+/* ─── TICKER ──────────────────────────────────────────── */
+.ticker-bar{
+  position:sticky;top:0;z-index:102;
+  height:28px;overflow:hidden;
+  background:rgba(0,119,188,0.10);
+  border-bottom:2px solid rgba(0,119,188,0.3);
+  display:flex;align-items:center;
+}
+.ticker-label{
+  flex-shrink:0;padding:0 16px;
+  font-family:var(--font-m);font-size:9px;font-weight:700;
+  color:#fff;letter-spacing:.16em;text-transform:uppercase;
+  border-right:2px solid rgba(0,119,188,0.4);
+  height:100%;display:flex;align-items:center;
+  background:rgba(0,119,188,0.22);
+  white-space:nowrap;
+}
+.ticker-track{flex:1;overflow:hidden;position:relative;}
+.ticker-inner{
+  display:flex;align-items:center;gap:0;
+  white-space:nowrap;height:28px;
+  animation:ticker-scroll 38s linear infinite;
+}
+@keyframes ticker-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.ticker-item{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:0 24px;
+  font-family:var(--font-m);font-size:9.5px;color:var(--t2);
+  letter-spacing:.04em;
+}
+.ticker-item .dot{width:4px;height:4px;border-radius:50%;background:var(--accent);box-shadow:0 0 5px var(--accent);flex-shrink:0;}
+.ticker-item.alert .dot{background:var(--red);box-shadow:0 0 5px var(--red);}
+.ticker-item.alert{color:var(--amber);}
+
+/* ─── TOPBAR ──────────────────────────────────────────── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 40px;height:68px;
+  border-bottom:2px solid rgba(0,119,188,.35);
+  background:rgba(4,7,15,.96);
+  backdrop-filter:blur(28px);
+  position:sticky;top:28px;z-index:101;
+}
+.topbar-left{display:flex;align-items:center;gap:16px;}
+.brand-logo{
+  width:42px;height:42px;border-radius:10px;
+  overflow:hidden;flex-shrink:0;
+  border:1px solid rgba(255,255,255,0.1);
+  box-shadow:0 0 20px rgba(0,200,240,0.15);
+  background:#fff;
+  display:flex;align-items:center;justify-content:center;
+}
+.brand-logo img{width:36px;height:36px;object-fit:contain;}
+.brand-divider{width:1px;height:32px;background:var(--bdr2);}
+.brand-text-wrap{display:flex;flex-direction:column;gap:1px;}
+.brand-org{
+  font-family:var(--font-m);font-size:9px;font-weight:500;
+  color:var(--t3);letter-spacing:.14em;text-transform:uppercase;
+}
+.brand-title{
+  font-family:var(--font-d);font-size:13px;font-weight:900;
+  color:var(--t1);letter-spacing:.04em;text-transform:uppercase;
+  background:linear-gradient(90deg,var(--t1) 60%,var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.live-pill{
+  display:flex;align-items:center;gap:7px;
+  padding:5px 13px;border-radius:100px;
+  background:var(--green-bg);border:1px solid rgba(0,232,162,.2);
+  font-family:var(--font-m);font-size:9px;font-weight:700;
+  color:var(--green);letter-spacing:.1em;
+}
+.live-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--green);box-shadow:0 0 10px var(--green);
+  animation:live-blink 1.8s ease-in-out infinite;
+}
+@keyframes live-blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.65)}}
+.date-chip{
+  font-family:var(--font-m);font-size:9px;color:var(--t3);
+  padding:5px 13px;border-radius:100px;
+  border:1px solid var(--bdr);background:var(--surf);
+  letter-spacing:.05em;
+}
+
+/* ─── PAGES ───────────────────────────────────────────── */
+.page{display:none;position:relative;z-index:1;}
+.page.active{display:block;}
+
+/* ─── DASHBOARD ───────────────────────────────────────── */
+.dash-header{padding:52px 40px 32px;}
+.breadcrumb{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--font-m);font-size:9px;
+  color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;
+}
+.breadcrumb .sep{color:var(--bdr2);}
+.breadcrumb .bc-active{color:var(--accent);}
+.page-title{
+  font-family:var(--font-d);font-size:32px;font-weight:900;
+  line-height:1.08;letter-spacing:-.5px;text-transform:uppercase;margin-bottom:6px;
+}
+.page-title span{color:var(--accent);}
+.page-sub{font-size:12px;color:var(--t2);letter-spacing:.02em;}
+
+/* ─── KPI GRID ────────────────────────────────────────── */
+.kpi-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:16px;padding:0 40px 32px;
+}
+.kpi-card{
+  background:var(--surf);border:1px solid var(--bdr);
+  border-radius:var(--r3);padding:22px 24px;
+  position:relative;overflow:hidden;
+  transition:border-color .22s,transform .22s,box-shadow .22s;
+  animation:kpi-in .5s both;
+}
+.kpi-card:hover{
+  border-color:var(--bdr2);transform:translateY(-3px);
+  box-shadow:0 12px 40px rgba(0,0,0,.35);
+}
+.kpi-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  border-radius:2px 2px 0 0;
+}
+.kpi-card::after{
+  content:'';position:absolute;inset:0;border-radius:var(--r3);
+  background:linear-gradient(135deg,rgba(255,255,255,.025) 0%,transparent 60%);
+  pointer-events:none;
+}
+.kpi-card.blue::before{background:var(--accent);}
+.kpi-card.red::before{background:var(--red);}
+.kpi-card.green::before{background:var(--green);}
+.kpi-card.amber::before{background:var(--amber);}
+.kpi-card.blue{animation-delay:.05s}
+.kpi-card.red{animation-delay:.10s}
+.kpi-card.green{animation-delay:.15s}
+.kpi-card.amber{animation-delay:.20s}
+
+/* glow pulse on active cards */
+.kpi-card.blue{animation:kpi-in .5s .05s both,blue-pulse 4s 2s ease-in-out infinite;}
+.kpi-card.red{animation:kpi-in .5s .10s both,red-pulse 4s 2.5s ease-in-out infinite;}
+.kpi-card.green{animation:kpi-in .5s .15s both,green-pulse 4s 3s ease-in-out infinite;}
+.kpi-card.amber{animation:kpi-in .5s .20s both,amber-pulse 4s 3.5s ease-in-out infinite;}
+@keyframes blue-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 22px rgba(0,200,240,.12)}}
+@keyframes red-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 22px rgba(255,61,90,.10)}}
+@keyframes green-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 22px rgba(0,232,162,.10)}}
+@keyframes amber-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 22px rgba(245,184,74,.10)}}
+@keyframes kpi-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+
+.kpi-icon{
+  width:36px;height:36px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;margin-bottom:16px;
+}
+.kpi-card.blue .kpi-icon{background:var(--accent-bg);}
+.kpi-card.red .kpi-icon{background:var(--red-bg);}
+.kpi-card.green .kpi-icon{background:var(--green-bg);}
+.kpi-card.amber .kpi-icon{background:var(--amber-bg);}
+
+.kpi-label{
+  font-family:var(--font-m);font-size:9px;color:var(--t3);
+  letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px;
+}
+.kpi-value{
+  font-family:var(--font-d);font-size:44px;font-weight:900;
+  line-height:1;letter-spacing:-.5px;
+}
+.kpi-card.blue .kpi-value{color:var(--accent);}
+.kpi-card.red .kpi-value{color:var(--red);}
+.kpi-card.green .kpi-value{color:var(--green);}
+.kpi-card.amber .kpi-value{color:var(--amber);}
+.kpi-sub{font-size:11px;color:var(--t3);margin-top:9px;}
+.kpi-sub b{color:var(--t2);}
+
+/* ─── SECTION ─────────────────────────────────────────── */
+.main-section{padding:0 40px 40px;}
+.section-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:18px;
+}
+.section-title{
+  font-family:var(--font-d);font-size:17px;font-weight:900;
+  display:flex;align-items:center;gap:10px;text-transform:uppercase;letter-spacing:.04em;
+}
+.section-badge{
+  font-family:var(--font-m);font-size:9px;font-weight:600;
+  padding:3px 10px;border-radius:100px;
+  background:rgba(0,119,188,.18);color:var(--accent);
+  border:2px solid rgba(0,151,200,.35);letter-spacing:.1em;font-weight:800;
+}
+
+/* ─── AI BUTTON ───────────────────────────────────────── */
+.ai-btn{
+  display:flex;align-items:center;gap:9px;
+  padding:11px 22px;border-radius:var(--r2);border:none;cursor:pointer;
+  font-family:var(--font-d);font-size:12px;font-weight:900;
+  letter-spacing:.08em;text-transform:uppercase;
+  background:var(--accent2);
+  border:2px solid var(--accent);
+  color:#fff;
+  box-shadow:0 0 24px rgba(0,119,188,.3),0 4px 16px rgba(0,0,0,.4);
+  transition:transform .2s,box-shadow .22s,background .18s;
+  position:relative;overflow:hidden;
+}
+.ai-btn::before{
+  content:'';position:absolute;
+  top:0;left:-120%;right:120%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent);
+  transform:skewX(-20deg);
+  transition:left .5s,right .5s;
+}
+.ai-btn:hover::before{left:120%;right:-120%;}
+.ai-btn:hover{transform:translateY(-2px);background:var(--accent);box-shadow:0 0 40px rgba(0,151,200,.45),0 8px 24px rgba(0,0,0,.4);}
+.ai-btn:active{transform:none;}
+.ai-btn-pulse{
+  width:8px;height:8px;border-radius:50%;background:#fff;
+  box-shadow:0 0 8px rgba(255,255,255,.8);
+  animation:btn-pulse 1.5s ease-in-out infinite;
+  flex-shrink:0;
+}
+@keyframes btn-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.6}}
+
+/* ─── TABLE ───────────────────────────────────────────── */
+.table-wrap{
+  background:var(--surf);border:1px solid var(--bdr);
+  border-radius:var(--r3);overflow:hidden;
+  animation:kpi-in .5s .24s both;
+  box-shadow:0 4px 30px rgba(0,0,0,.2);
+}
+table{width:100%;border-collapse:collapse;}
+thead tr{background:rgba(255,255,255,.025);border-bottom:1px solid var(--bdr);}
+th{
+  padding:14px 18px;text-align:left;
+  font-family:var(--font-m);font-size:9px;font-weight:700;
+  color:var(--t2);letter-spacing:.14em;text-transform:uppercase;
+  white-space:nowrap;
+}
+tbody tr{border-bottom:1px solid var(--bdr);transition:background .18s,transform .18s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr.interactive{cursor:pointer;}
+tbody tr.interactive:hover{
+  background:rgba(0,200,240,.045);
+  transform:translateX(2px);
+}
+tbody tr.static td{color:var(--t2);opacity:.6;}
+td{padding:15px 18px;font-size:12px;font-weight:500;}
+
+.req-id{
+  font-family:var(--font-m);font-size:10px;
+  color:var(--accent);font-weight:600;
+}
+.risk-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:100px;
+  font-family:var(--font-m);font-size:9px;font-weight:700;
+  letter-spacing:.06em;
+}
+.risk-badge.high{background:var(--red-bg);color:var(--red);border:2px solid rgba(255,61,90,.4);font-weight:800;}
+.risk-badge.medium{background:var(--amber-bg);color:var(--amber);border:2px solid rgba(245,184,74,.4);font-weight:800;}
+.risk-badge.low{background:var(--green-bg);color:var(--green);border:2px solid rgba(0,196,122,.4);font-weight:800;}
+.status-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:100px;
+  font-family:var(--font-m);font-size:9px;font-weight:700;
+  letter-spacing:.06em;
+  background:var(--amber-bg);color:var(--amber);
+  border:1px solid rgba(245,184,74,.25);
+}
+.status-badge::before{
+  content:'';width:5px;height:5px;border-radius:50%;
+  background:var(--amber);flex-shrink:0;
+  animation:live-blink 2s ease-in-out infinite;
+}
+.irow-indicator{
+  font-family:var(--font-m);font-size:9px;
+  color:var(--accent);opacity:.6;margin-left:5px;
+}
+
+/* ─── MODAL ───────────────────────────────────────────── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(6px);
+  z-index:200;align-items:stretch;justify-content:flex-end;
+}
+.modal-overlay.open{display:flex;}
+.detail-panel{
+  width:480px;height:100vh;
+  background:var(--bg2);border-left:1px solid var(--bdr2);
+  overflow-y:auto;display:flex;flex-direction:column;
+  transform:translateX(100%);
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:-20px 0 60px rgba(0,0,0,.4);
+}
+.modal-overlay.open .detail-panel{transform:translateX(0);}
+.panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:24px 28px;border-bottom:1px solid var(--bdr);
+  background:rgba(0,200,240,.025);
+  position:sticky;top:0;backdrop-filter:blur(20px);z-index:10;
+}
+.panel-title{font-family:var(--font-d);font-size:18px;font-weight:900;text-transform:uppercase;letter-spacing:.03em;}
+.panel-subtitle{font-family:var(--font-m);font-size:10px;color:var(--t2);margin-top:3px;}
+.close-btn{
+  width:34px;height:34px;border-radius:9px;
+  background:var(--surf2);border:1px solid var(--bdr);
+  color:var(--t2);font-size:15px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;
+}
+.close-btn:hover{background:var(--red-bg);color:var(--red);border-color:rgba(255,61,90,.3);}
+.panel-body{padding:24px 28px;flex:1;}
+.panel-footer{padding:20px 28px;border-top:1px solid var(--bdr);}
+.field-group{margin-bottom:20px;}
+.field-label{font-family:var(--font-m);font-size:9px;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px;}
+.field-value{font-size:14px;color:var(--t1);font-weight:500;}
+.field-value.accent{color:var(--accent);}
+.flags-row{display:flex;gap:8px;flex-wrap:wrap;}
+.flag-chip{
+  padding:4px 12px;border-radius:100px;
+  font-family:var(--font-m);font-size:10px;font-weight:600;
+}
+.flag-chip.yes{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(245,184,74,.3);}
+.flag-chip.no{background:var(--surf);color:var(--t3);border:1px solid var(--bdr);}
+.case-notes-box{
+  background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r2);
+  padding:14px;font-family:var(--font-b);font-size:12px;
+  color:var(--t2);line-height:1.65;font-style:italic;
+}
+.divider{height:1px;background:var(--bdr);margin:20px 0;}
+.full-ai-btn{
+  width:100%;padding:14px;border-radius:var(--r2);border:none;cursor:pointer;
+  font-family:var(--font-d);font-size:13px;font-weight:900;
+  letter-spacing:.08em;text-transform:uppercase;
+  background:var(--accent2);border:2px solid var(--accent);
+  color:#fff;box-shadow:0 0 20px rgba(0,119,188,.25);
+  transition:transform .2s,box-shadow .2s;
+  position:relative;overflow:hidden;
+}
+.full-ai-btn::before{
+  content:'';position:absolute;
+  top:0;left:-120%;right:120%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);
+  transform:skewX(-20deg);
+  transition:left .5s,right .5s;
+}
+.full-ai-btn:hover::before{left:120%;right:-120%;}
+.full-ai-btn:hover{transform:translateY(-1px);background:var(--accent);box-shadow:0 0 34px rgba(0,151,200,.42);}
+
+/* ─── AI ENGINE PAGE ──────────────────────────────────── */
+.ai-engine-page{min-height:100vh;padding:52px 40px;}
+.engine-header{text-align:center;margin-bottom:48px;}
+.engine-chip{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:6px 16px;border-radius:100px;
+  background:rgba(0,119,188,.18);border:2px solid rgba(0,151,200,.4);
+  font-family:var(--font-m);font-size:10px;font-weight:700;
+  color:var(--accent);letter-spacing:.14em;text-transform:uppercase;
+  margin-bottom:18px;
+}
+.engine-title{
+  font-family:var(--font-d);
+  font-size:32px;font-weight:900;letter-spacing:-.6px;line-height:1.08;text-transform:uppercase;
+}
+.engine-title span{
+  background:linear-gradient(90deg,var(--accent),var(--violet));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.engine-candidate{font-size:13px;color:var(--t2);margin-top:10px;}
+.engine-candidate b{color:var(--t1);}
+.overall-progress{
+  height:3px;background:var(--surf2);border-radius:100px;
+  overflow:hidden;margin:20px 0 34px;
+}
+.overall-progress-fill{
+  height:100%;border-radius:100px;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--violet));
+  transition:width .4s ease;
+  box-shadow:0 0 12px rgba(0,200,240,.6);
+}
+.steps-container{
+  display:grid;grid-template-columns:1fr 284px;
+  gap:24px;max-width:1100px;margin:0 auto;
+}
+.steps-list{display:flex;flex-direction:column;gap:3px;}
+.step-item{
+  display:flex;align-items:flex-start;gap:14px;
+  padding:14px 18px;border-radius:var(--r2);
+  border:1px solid transparent;transition:all .3s;opacity:.3;
+}
+.step-item.active{
+  opacity:1;background:var(--accent-bg);
+  border-color:rgba(0,200,240,.2);
+  box-shadow:0 0 20px rgba(0,200,240,.08);
+}
+.step-item.done{
+  opacity:.65;background:var(--green-bg);
+  border-color:rgba(0,232,162,.12);
+}
+.step-item.done .step-number{background:var(--green-bg);color:var(--green);border-color:rgba(0,232,162,.3);}
+.step-number{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;
+  background:var(--surf);border:1px solid var(--bdr);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-m);font-size:10px;font-weight:700;
+  color:var(--t2);transition:all .3s;border:2px solid var(--bdr2);
+}
+.step-item.active .step-number{
+  background:var(--accent-bg);color:var(--accent);
+  border-color:rgba(0,200,240,.4);
+  animation:step-pulse 1.5s infinite;
+}
+@keyframes step-pulse{
+  0%,100%{box-shadow:0 0 10px rgba(0,200,240,.28);}
+  50%{box-shadow:0 0 24px rgba(0,200,240,.55);}
+}
+.step-content{flex:1;}
+.step-name{
+  font-family:var(--font-d);font-size:13px;font-weight:600;margin-bottom:2px;
+}
+.step-item.active .step-name{color:var(--accent);}
+.step-item.done .step-name{color:var(--green);}
+.step-desc{font-family:var(--font-m);font-size:10px;color:var(--t3);}
+.step-loader{
+  display:none;width:15px;height:15px;flex-shrink:0;
+  border:2px solid rgba(0,200,240,.18);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite;
+}
+.step-item.active .step-loader{display:block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.step-check{display:none;font-size:13px;flex-shrink:0;}
+.step-item.done .step-check{display:block;color:var(--green);}
+
+.ai-side-panel{display:flex;flex-direction:column;gap:12px;}
+.data-card{
+  background:var(--surf);border:1px solid var(--bdr);
+  border-radius:var(--r2);padding:16px 18px;transition:all .3s;
+}
+.data-card.highlight{
+  background:rgba(0,200,240,.055);border-color:rgba(0,200,240,.22);
+  box-shadow:0 0 20px rgba(0,200,240,.09);
+}
+.data-card-title{
+  font-family:var(--font-m);font-size:9px;color:var(--t3);
+  letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;
+}
+.data-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:5px 0;border-bottom:1px solid var(--bdr);font-size:12px;
+}
+.data-item:last-child{border-bottom:none;}
+.data-item .dk{color:var(--t3);}
+.data-item .dv{font-family:var(--font-m);font-size:10px;font-weight:600;color:var(--t1);}
+.data-item .dv.acc{color:var(--accent);}
+.data-item .dv.grn{color:var(--green);}
+.data-item .dv.red{color:var(--red);}
+.data-item .dv.amb{color:var(--amber);}
+.thinking-stream{
+  background:var(--surf);border:1px solid var(--bdr);
+  border-radius:var(--r2);padding:14px;
+  font-family:var(--font-m);font-size:10px;
+  color:var(--t3);line-height:1.9;min-height:82px;
+}
+.thinking-line{
+  opacity:0;transform:translateY(5px);
+  animation:think-in .3s forwards;
+}
+.thinking-line.acc{color:var(--accent);}
+.thinking-line.grn{color:var(--green);}
+.thinking-line.red{color:var(--red);}
+@keyframes think-in{to{opacity:1;transform:none;}}
+
+/* ─── RESULT PAGE ─────────────────────────────────────── */
+.result-page{padding:52px 40px;min-height:100vh;}
+.back-btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 18px;border-radius:var(--r2);
+  background:var(--surf);border:1px solid var(--bdr);
+  color:var(--t2);font-family:var(--font-b);font-size:12px;font-weight:500;
+  cursor:pointer;transition:all .15s;margin-bottom:32px;
+}
+.back-btn:hover{background:var(--surf2);color:var(--t1);}
+.result-header{text-align:center;margin-bottom:40px;}
+.result-success-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:7px 18px;border-radius:100px;
+  background:rgba(0,152,102,.18);border:2px solid rgba(0,196,122,.45);
+  font-family:var(--font-m);font-size:10px;font-weight:700;
+  color:var(--green);letter-spacing:.12em;text-transform:uppercase;
+  margin-bottom:16px;animation:fade-up .5s both;
+}
+@keyframes fade-up{
+  from{opacity:0;transform:translateY(14px);}
+  to{opacity:1;transform:none;}
+}
+.result-candidate-name{
+  font-family:var(--font-d);font-size:32px;font-weight:900;letter-spacing:-.5px;text-transform:uppercase;
+  animation:fade-up .5s .1s both;
+}
+.result-candidate-name span{color:var(--accent);}
+.result-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:20px;max-width:1120px;margin:0 auto;
+}
+.result-main-card{
+  background:var(--surf);border:1px solid rgba(0,200,240,.18);
+  border-radius:var(--r3);padding:28px;
+  position:relative;overflow:hidden;
+  animation:fade-up .5s .18s both;
+  box-shadow:0 8px 40px rgba(0,0,0,.22);
+}
+.result-main-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;
+  background:var(--accent);
+}
+.result-main-card::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(0,200,240,.025) 0%,transparent 50%);
+  pointer-events:none;border-radius:var(--r3);
+}
+.persona-tag{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 13px;border-radius:100px;
+  font-family:var(--font-m);font-size:10px;font-weight:700;
+  background:rgba(80,60,180,.18);color:#b8a4ff;
+  border:2px solid rgba(157,127,252,.38);margin-bottom:14px;font-weight:800;letter-spacing:.05em;
+}
+.shelter-type-label{
+  font-family:var(--font-m);font-size:9px;
+  color:var(--accent);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px;
+}
+.shelter-name{
+  font-family:var(--font-d);font-size:24px;font-weight:900;
+  line-height:1.2;letter-spacing:-.2px;margin-bottom:5px;
+}
+.shelter-region{font-size:12px;color:var(--t2);margin-bottom:20px;}
+.shelter-stats{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;
+}
+.stat-box{
+  background:var(--bg3);border:1px solid var(--bdr);
+  border-radius:var(--r2);padding:14px;
+}
+.stat-box-label{font-family:var(--font-m);font-size:9px;color:var(--t3);letter-spacing:.06em;margin-bottom:4px;}
+.stat-box-val{
+  font-family:var(--font-d);font-size:28px;font-weight:900;
+  letter-spacing:-.3px;color:var(--accent);
+}
+.stat-box-val.green{color:var(--green);}
+.confidence-bar-wrap{margin-bottom:8px;}
+.confidence-label{
+  font-size:11px;color:var(--t2);margin-bottom:5px;
+  display:flex;justify-content:space-between;
+}
+.confidence-bar{height:5px;border-radius:100px;background:var(--surf2);overflow:hidden;}
+.confidence-fill{
+  height:100%;border-radius:100px;width:0;
+  background:linear-gradient(90deg,var(--green),var(--accent));
+  transition:width 1.1s cubic-bezier(.22,1,.36,1) .5s;
+}
+.reason-box{
+  background:var(--bg3);border:1px solid var(--bdr);
+  border-radius:var(--r2);padding:14px;margin-top:14px;
+}
+.reason-title{font-family:var(--font-m);font-size:9px;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px;}
+.reason-text{font-size:12px;color:var(--t2);line-height:1.7;}
+.reason-text strong{color:var(--t1);}
+.map-card{
+  background:var(--surf);border:1px solid var(--bdr);
+  border-radius:var(--r3);overflow:hidden;
+  display:flex;flex-direction:column;
+  animation:fade-up .5s .26s both;
+}
+.map-header{
+  padding:18px 22px;border-bottom:1px solid var(--bdr);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.map-title{font-family:var(--font-d);font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;}
+.map-subtitle{font-family:var(--font-m);font-size:10px;color:var(--t3);}
+#shelter-map{flex:1;min-height:380px;}
+.alternates-card{
+  grid-column:1/-1;
+  background:var(--surf);border:1px solid var(--bdr);
+  border-radius:var(--r3);padding:24px 28px;
+  animation:fade-up .5s .36s both;
+}
+.alt-title{font-family:var(--font-d);font-size:16px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;margin-bottom:18px;}
+.alt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;}
+.alt-item{
+  background:var(--bg3);border:1px solid var(--bdr);
+  border-radius:var(--r2);padding:15px;
+  transition:border-color .2s,transform .2s;
+}
+.alt-item:hover{border-color:var(--bdr2);transform:translateY(-2px);}
+.alt-item-name{font-family:var(--font-d);font-size:12px;font-weight:700;margin-bottom:3px;}
+.alt-item-region{font-family:var(--font-m);font-size:9px;color:var(--t3);margin-bottom:10px;}
+.alt-item-beds{font-family:var(--font-d);font-size:26px;font-weight:900;color:var(--green);}
+.alt-item-beds-label{font-family:var(--font-m);font-size:9px;color:var(--t3);}
+.occ-bar-wrap{margin-top:9px;}
+.occ-bar{height:4px;border-radius:100px;background:var(--surf2);overflow:hidden;}
+.occ-fill{height:100%;border-radius:100px;transition:width .9s cubic-bezier(.22,1,.36,1) .6s;}
+.occ-fill.ok{background:var(--green);}
+.occ-fill.warn{background:var(--amber);}
+
+/* ─── SCROLLBAR ───────────────────────────────────────── */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:10px;}
+
+/* ─── LEAFLET DARK ────────────────────────────────────── */
+.leaflet-container{background:var(--bg2) !important;}
+.leaflet-tile{filter:brightness(.6) saturate(.3) hue-rotate(180deg);}
+.leaflet-popup-content-wrapper{
+  background:var(--bg2) !important;border:1px solid var(--bdr2) !important;
+  color:var(--t1) !important;border-radius:var(--r2) !important;
+  box-shadow:0 10px 32px rgba(0,0,0,.55) !important;
+}
+.leaflet-popup-tip{background:var(--bg2) !important;}
+.leaflet-popup-content{color:var(--t1) !important;font-family:var(--font-b);font-size:12px;}
+tbody tr.interactive td:first-child::before{
+  content:'';display:inline-block;width:4px;height:4px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 6px var(--accent);
+  margin-right:8px;vertical-align:middle;
+}
+@media(max-width:900px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .result-grid{grid-template-columns:1fr;}
+  .steps-container{grid-template-columns:1fr;}
+  .alt-grid{grid-template-columns:1fr 1fr;}
+}
+
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-8px)}
+  40%{transform:translateX(8px)}
+  60%{transform:translateX(-5px)}
+  80%{transform:translateX(5px)}
+}
+</style>
+</head>
+<body>
+
+
+<!-- BACKGROUND -->
+
+<!-- CURSOR -->
+<div id="c-orb" style="position:fixed;pointer-events:none;z-index:9999;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff 0%,#7df4ff 45%,#1a9fd4 100%);box-shadow:0 0 10px 2px rgba(26,159,212,0.7),0 0 22px 4px rgba(26,159,212,0.3);transform:translate(-50%,-50%);transition:width .18s ease,height .18s ease,box-shadow .18s ease;will-change:transform;"></div>
+<div class="bg-canvas">
+  <div class="bg-grid"></div>
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+  <div class="bg-sweep"></div>
+</div>
+
+<!-- TICKER -->
+<div class="ticker-bar">
+  <div class="ticker-label">⚡ LIVE FEED</div>
+  <div class="ticker-track">
+    <div class="ticker-inner" id="ticker-inner"></div>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="brand-logo">
+      <img src="data:image/png;base64,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" alt="MSF Logo">
+    </div>
+    <div class="brand-divider"></div>
+    <div class="brand-text-wrap">
+      <div class="brand-org">Ministry of Social &amp; Family Development · Singapore</div>
+      <div class="brand-title">Shelter Home Placement Engine</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="date-chip">14 APR 2026 · 09:00 SGT</div>
+    <div class="live-pill"><div class="live-dot"></div>LIVE SYSTEM</div>
+  </div>
+</header>
+
+<!-- PAGE 1: DASHBOARD -->
+<!-- LOGIN PAGE -->
+<div id="page-login" class="page active">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;">
+    <div style="width:100%;max-width:420px;">
+
+      <!-- Logo + Brand -->
+      <div style="text-align:center;margin-bottom:40px;">
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:14px;background:#fff;box-shadow:0 0 32px rgba(26,159,212,0.3);margin-bottom:20px;">
+          <img src="data:image/png;base64,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" style="width:52px;height:52px;object-fit:contain;">
+        </div>
+        <div style="font-family:var(--font-m);font-size:9px;font-weight:700;color:var(--t3);letter-spacing:.16em;text-transform:uppercase;margin-bottom:8px;">Ministry of Social &amp; Family Development · Singapore</div>
+        <div style="font-family:var(--font-d);font-size:22px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;background:linear-gradient(90deg,#fff 40%,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Shelter Home Placement Engine</div>
+      </div>
+
+      <!-- Card -->
+      <div style="background:rgba(255,255,255,0.05);border:1.5px solid rgba(26,159,212,0.2);border-radius:var(--r2);padding:36px;box-shadow:0 8px 40px rgba(0,0,0,0.4),0 0 60px rgba(26,159,212,0.06);">
+        <div style="font-family:var(--font-d);font-size:16px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">Sign In</div>
+        <div style="font-family:var(--font-m);font-size:10px;color:var(--t2);letter-spacing:.05em;margin-bottom:28px;">Authorised personnel only</div>
+
+        <div id="login-error" style="display:none;background:var(--red-bg);border:1.5px solid rgba(255,61,90,.35);border-radius:var(--r1);padding:10px 14px;margin-bottom:20px;font-family:var(--font-m);font-size:10px;color:var(--red);letter-spacing:.04em;">
+          ✕ &nbsp;Invalid username or password.
+        </div>
+
+        <!-- Username -->
+        <div style="margin-bottom:18px;">
+          <label style="display:block;font-family:var(--font-m);font-size:9px;font-weight:700;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px;">Username</label>
+          <input id="login-user" type="text" placeholder="Enter username" autocomplete="username"
+            style="width:100%;background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.12);border-radius:var(--r1);padding:11px 14px;font-family:var(--font-b);font-size:13px;color:var(--t1);outline:none;transition:border-color .18s,box-shadow .18s;"
+            onfocus="this.style.borderColor='rgba(26,159,212,0.6)';this.style.boxShadow='0 0 0 3px rgba(26,159,212,0.12)'"
+            onblur="this.style.borderColor='rgba(255,255,255,0.12)';this.style.boxShadow='none'">
+        </div>
+
+        <!-- Password -->
+        <div style="margin-bottom:28px;">
+          <label style="display:block;font-family:var(--font-m);font-size:9px;font-weight:700;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px;">Password</label>
+          <div style="position:relative;">
+            <input id="login-pass" type="password" placeholder="Enter password" autocomplete="current-password"
+              style="width:100%;background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.12);border-radius:var(--r1);padding:11px 44px 11px 14px;font-family:var(--font-b);font-size:13px;color:var(--t1);outline:none;transition:border-color .18s,box-shadow .18s;"
+              onfocus="this.style.borderColor='rgba(26,159,212,0.6)';this.style.boxShadow='0 0 0 3px rgba(26,159,212,0.12)'"
+              onblur="this.style.borderColor='rgba(255,255,255,0.12)';this.style.boxShadow='none'"
+              onkeydown="if(event.key==='Enter')doLogin()">
+            <button onclick="togglePass()" tabindex="-1"
+              style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t3);font-size:14px;padding:4px;transition:color .15s;"
+              onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--t3)'"
+              id="pass-toggle">👁</button>
+          </div>
+        </div>
+
+        <!-- Login button -->
+        <button onclick="doLogin()" style="
+          width:100%;padding:13px;border-radius:var(--r1);border:2px solid var(--accent);
+          background:var(--accent2);color:#fff;
+          font-family:var(--font-d);font-size:12px;font-weight:900;
+          letter-spacing:.1em;text-transform:uppercase;
+          box-shadow:0 0 24px rgba(26,159,212,0.25);
+          transition:background .18s,box-shadow .2s,transform .15s;
+          position:relative;overflow:hidden;"
+          onmouseenter="this.style.background='var(--accent)';this.style.boxShadow='0 0 38px rgba(26,159,212,0.45)'"
+          onmouseleave="this.style.background='var(--accent2)';this.style.boxShadow='0 0 24px rgba(26,159,212,0.25)'"
+          onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
+          <span id="login-btn-text">Sign In →</span>
+        </button>
+
+        <div style="margin-top:20px;text-align:center;font-family:var(--font-m);font-size:9px;color:var(--t3);letter-spacing:.05em;">
+          🔒 &nbsp;Secure access · MSF-SG Internal System
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="page-dashboard" class="page">
+  <div class="dash-header">
+    <div class="breadcrumb">
+      <span>MSF-SG</span><span class="sep">›</span>
+      <span>Shelter Operations</span><span class="sep">›</span>
+      <span class="bc-active">Intake Dashboard</span>
+    </div>
+    <div class="page-title">Open <span>Shelter Home</span> Requests</div>
+    <div class="page-sub">Real-time intake queue · AI-assisted shelter matching · 14 April 2026</div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-icon">📥</div>
+      <div class="kpi-label">Total Requests Today</div>
+      <div class="kpi-value" data-target="10" id="kv-0">0</div>
+      <div class="kpi-sub"><b>+3</b> from yesterday</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-icon">🔴</div>
+      <div class="kpi-label">High Risk Cases</div>
+      <div class="kpi-value" data-target="4" id="kv-1">0</div>
+      <div class="kpi-sub"><b>Immediate</b> attention needed</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon">🛏</div>
+      <div class="kpi-label">Beds Available</div>
+      <div class="kpi-value" data-target="814" id="kv-2">0</div>
+      <div class="kpi-sub">Across <b>61</b> shelters island-wide</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-icon">✅</div>
+      <div class="kpi-label">Placement Success %</div>
+      <div class="kpi-value" data-target="94" data-suffix="%" id="kv-3">0%</div>
+      <div class="kpi-sub">Last <b>30 days</b> rate</div>
+    </div>
+  </div>
+  <div class="main-section">
+    <div class="section-header">
+      <div class="section-title">
+        Candidate Queue <span class="section-badge">10 REQUESTS</span>
+      </div>
+      <button class="ai-btn" onclick="triggerAIFromTable()">
+        <div class="ai-btn-pulse"></div>
+        Trigger AI Screening
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Request ID</th><th>Candidate</th><th>Age</th>
+            <th>Region</th><th>Risk Level</th><th>Issue Summary</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="request-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="detail-modal" onclick="closeModal(event)">
+  <div class="detail-panel">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title" id="panel-candidate-name">Candidate Details</div>
+        <div class="panel-subtitle" id="panel-req-id">REQ-000</div>
+      </div>
+      <button class="close-btn" onclick="closeModalDirect()">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body-content"></div>
+    <div class="panel-footer">
+      <button class="full-ai-btn" onclick="triggerAIFromPanel()">
+        ⚡ Run AI Placement Engine
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2: AI ENGINE -->
+<div id="page-engine" class="page">
+  <div class="ai-engine-page">
+    <div class="engine-header">
+      <div class="engine-chip">⚡ AI Processing Active</div>
+      <div class="engine-title">Placement Request <span>Evaluation</span></div>
+      <div class="engine-candidate">Analysing candidate: <b id="engine-candidate-display">—</b></div>
+    </div>
+    <div class="overall-progress">
+      <div class="overall-progress-fill" id="overall-progress-fill"></div>
+    </div>
+    <div class="steps-container">
+      <div class="steps-list" id="steps-list"></div>
+      <div class="ai-side-panel">
+        <div class="data-card" id="candidate-data-card">
+          <div class="data-card-title">Candidate Profile</div>
+          <div id="candidate-data-items"></div>
+        </div>
+        <div class="data-card highlight" id="decision-card" style="display:none">
+          <div class="data-card-title">Decision Output</div>
+          <div id="decision-data-items"></div>
+        </div>
+        <div class="thinking-stream" id="thinking-stream">
+          <div style="color:var(--t3)">Awaiting processing…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 3: RESULT -->
+<div id="page-result" class="page">
+  <div class="result-page">
+    <button class="back-btn" onclick="goBack()">← Back to Dashboard</button>
+    <div class="result-header">
+      <div class="result-success-badge">✓ Placement Recommendation Ready</div>
+      <div class="result-candidate-name">Shelter Home Match for <span id="result-name">—</span></div>
+    </div>
+    <div class="result-grid" id="result-grid"></div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+
+
+// ── TICKER ────────────────────────────────────────────────
+const tickItems = [
+  {text:'REQ-011 received · Tampines area · High risk flag raised',alert:true},
+  {text:'3 beds allocated · Orchard Anchor Crisis Shelter',alert:false},
+  {text:'North region occupancy +2% · 8 shelters updated',alert:false},
+  {text:'Crisis shelter alert · Central region · 2 beds remaining',alert:true},
+  {text:'AI engine processed 4 cases in last 30 minutes',alert:false},
+  {text:'REQ-008 matched successfully · Bedok Oakridge Transitional',alert:false},
+  {text:'Welfare home intake closed · West Haven at 95% capacity',alert:true},
+  {text:'New partnership shelter onboarded · Sengkang precinct',alert:false},
+  {text:'Priority queue: 4 high risk cases pending immediate review',alert:true},
+  {text:'System health nominal · All 61 shelters reporting live data',alert:false},
+];
+const ti = document.getElementById('ticker-inner');
+const doubled = [...tickItems, ...tickItems];
+doubled.forEach(item => {
+  const d = document.createElement('div');
+  d.className = 'ticker-item' + (item.alert ? ' alert' : '');
+  d.innerHTML = `<span class="dot"></span><span>${item.text}</span>`;
+  ti.appendChild(d);
+});
+
+// ── KPI COUNTUP ───────────────────────────────────────────
+function countUp(el, target, suffix, duration) {
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    el.textContent = Math.round(ease * target) + (suffix || '');
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+setTimeout(() => {
+  document.querySelectorAll('.kpi-value[data-target]').forEach(el => {
+    const target = +el.dataset.target;
+    const suffix = el.dataset.suffix || '';
+    countUp(el, target, suffix, 1800);
+  });
+}, 400);
+
+// ── DATA ──────────────────────────────────────────────────
+let candidates = [
+  {request_id:"REQ-001",candidate_name:"Aisha Tan",    age:32,gender:"Female",preferred_region:"Central",   issue_summary:"Domestic violence, immediate safety risk",         risk_level:"High",  disability_flag:"No", elderly_flag:"No", family_unit_flag:"No", expected_shelter_type:"Crisis Shelters",            request_timestamp:"2026-04-14T09:00:00",case_notes:"Client presented at emergency hotline at 0230hrs. Reports ongoing physical violence from partner. Requires immediate safe housing. Children not present."},
+  {request_id:"REQ-002",candidate_name:"Marcus Lee",   age:45,gender:"Male",  preferred_region:"East",      issue_summary:"Stable homelessness, awaiting housing support",    risk_level:"Low",   disability_flag:"No", elderly_flag:"No", family_unit_flag:"Yes",expected_shelter_type:"Transitional Shelters",      request_timestamp:"2026-04-14T09:15:00",case_notes:"Client has been sleeping rough at Bedok interchange for 3 weeks. Employment-seeking. Family unit pending HDB application. No immediate danger."},
+  {request_id:"REQ-003",candidate_name:"Mei Lin",      age:67,gender:"Female",preferred_region:"North",     issue_summary:"Elderly, no family support, no housing",          risk_level:"Medium",disability_flag:"No", elderly_flag:"Yes",family_unit_flag:"No", expected_shelter_type:"Sheltered Homes",            request_timestamp:"2026-04-14T09:30:00",case_notes:"Referred by MSW from Khoo Teck Puat Hospital. Estranged from family. Moderate mobility limitations."},
+  {request_id:"REQ-004",candidate_name:"Jason Ong",    age:29,gender:"Male",  preferred_region:"West",      issue_summary:"Permanent physical disability, caregiver unavail", risk_level:"Medium",disability_flag:"Yes",elderly_flag:"No", family_unit_flag:"No", expected_shelter_type:"Adult Disability Homes",     request_timestamp:"2026-04-14T09:45:00",case_notes:"Wheelchair user following road traffic accident. Primary caregiver (mother) hospitalised. Requires accessible housing with support services."},
+  {request_id:"REQ-005",candidate_name:"Noah Lim",     age:14,gender:"Male",  preferred_region:"North-East",issue_summary:"Unsafe home environment, neglect suspected",       risk_level:"High",  disability_flag:"No", elderly_flag:"No", family_unit_flag:"No", expected_shelter_type:"Youth and Children's Homes", request_timestamp:"2026-04-14T10:00:00",case_notes:"School counsellor referral. Child presents with signs of emotional neglect. Parent under investigation by CPS."},
+  {request_id:"REQ-006",candidate_name:"Siti Rahman",  age:38,gender:"Female",preferred_region:"Central",   issue_summary:"Financial distress and unable to self-care",       risk_level:"Medium",disability_flag:"No", elderly_flag:"No", family_unit_flag:"No", expected_shelter_type:"Welfare Homes",              request_timestamp:"2026-04-14T10:15:00",case_notes:"Lost employment 4 months ago. Utility and rental arrears accumulating. Mental health fragile but stable."},
+  {request_id:"REQ-007",candidate_name:"Daniel Goh",   age:72,gender:"Male",  preferred_region:"West",      issue_summary:"Senior homeless, independent ADLs",               risk_level:"Low",   disability_flag:"No", elderly_flag:"Yes",family_unit_flag:"No", expected_shelter_type:"Sheltered Homes",            request_timestamp:"2026-04-14T10:30:00",case_notes:"Semi-independent senior. Declined family home citing relationship conflict. Good mobility. Seeks long-term shelter."},
+  {request_id:"REQ-008",candidate_name:"Cheryl Wong",  age:34,gender:"Female",preferred_region:"East",      issue_summary:"Family with children, temporary housing gap",      risk_level:"Low",   disability_flag:"No", elderly_flag:"No", family_unit_flag:"Yes",expected_shelter_type:"Transitional Shelters",      request_timestamp:"2026-04-14T10:45:00",case_notes:"Mother of 2. Evicted following landlord dispute. BTO application approved but 6-month wait. Needs interim placement."},
+  {request_id:"REQ-009",candidate_name:"Ethan Teo",    age:17,gender:"Male",  preferred_region:"Central",   issue_summary:"Juvenile protection referral",                    risk_level:"High",  disability_flag:"No", elderly_flag:"No", family_unit_flag:"No", expected_shelter_type:"Youth and Children's Homes", request_timestamp:"2026-04-14T11:00:00",case_notes:"Referred by Probation Officer. History of truancy and minor offences. Family unwilling to house. Requires structured youth environment."},
+  {request_id:"REQ-010",candidate_name:"Farah Ali",    age:41,gender:"Female",preferred_region:"North",     issue_summary:"Domestic abuse survivor with child",              risk_level:"High",  disability_flag:"No", elderly_flag:"No", family_unit_flag:"Yes",expected_shelter_type:"Crisis Shelters",            request_timestamp:"2026-04-14T11:15:00",case_notes:"Fled matrimonial home 2 days ago with 6-year-old daughter. Restraining order applied for. Requires immediate safe placement."}
+];
+let shelters = [
+  {home_name:"Woodlands Anchor Sheltered Home",       home_type:"Sheltered Homes",           region:"North",      lat:1.442174,lng:103.837628,home_id:"H-001",capacity:108,available_beds:26,occupancy_pct:75.9},
+  {home_name:"Serangoon Bridge Sheltered Home",       home_type:"Sheltered Homes",           region:"North-East", lat:1.377394,lng:103.905078,home_id:"H-002",capacity:77, available_beds:12,occupancy_pct:84.4},
+  {home_name:"Central Harbour Sheltered Home",        home_type:"Sheltered Homes",           region:"Central",    lat:1.284988,lng:103.856905,home_id:"H-003",capacity:77, available_beds:16,occupancy_pct:79.2},
+  {home_name:"Tampines NewHope Sheltered Home",       home_type:"Sheltered Homes",           region:"East",       lat:1.325365,lng:103.974892,home_id:"H-004",capacity:85, available_beds:10,occupancy_pct:88.2},
+  {home_name:"Clementi Spring Sheltered Home",        home_type:"Sheltered Homes",           region:"West",       lat:1.346846,lng:103.704243,home_id:"H-005",capacity:53, available_beds:11,occupancy_pct:79.2},
+  {home_name:"North Starlight Sheltered Home",        home_type:"Sheltered Homes",           region:"North",      lat:1.454371,lng:103.834987,home_id:"H-006",capacity:44, available_beds:14,occupancy_pct:68.2},
+  {home_name:"Hougang Anchor Sheltered Home",         home_type:"Sheltered Homes",           region:"North-East", lat:1.372015,lng:103.884279,home_id:"H-007",capacity:88, available_beds:18,occupancy_pct:79.5},
+  {home_name:"North Spring Sheltered Home",           home_type:"Sheltered Homes",           region:"North",      lat:1.401777,lng:103.842072,home_id:"H-011",capacity:44, available_beds:15,occupancy_pct:65.9},
+  {home_name:"Orchard Harbour Adult Disability Home", home_type:"Adult Disability Homes",    region:"Central",    lat:1.296252,lng:103.856332,home_id:"H-013",capacity:85, available_beds:34,occupancy_pct:60.0},
+  {home_name:"East Starlight Adult Disability Home",  home_type:"Adult Disability Homes",    region:"East",       lat:1.32573, lng:103.964824,home_id:"H-014",capacity:94, available_beds:24,occupancy_pct:74.5},
+  {home_name:"West Spring Adult Disability Home",     home_type:"Adult Disability Homes",    region:"West",       lat:1.310127,lng:103.734593,home_id:"H-015",capacity:60, available_beds:27,occupancy_pct:55.0},
+  {home_name:"Sengkang Riverbend Adult Disability",   home_type:"Adult Disability Homes",    region:"North-East", lat:1.407275,lng:103.888677,home_id:"H-017",capacity:111,available_beds:39,occupancy_pct:64.9},
+  {home_name:"Novena Haven Adult Disability Home",    home_type:"Adult Disability Homes",    region:"Central",    lat:1.308938,lng:103.827262,home_id:"H-018",capacity:49, available_beds:16,occupancy_pct:67.3},
+  {home_name:"Bedok Bridge Adult Disability Home",    home_type:"Adult Disability Homes",    region:"East",       lat:1.358468,lng:103.957564,home_id:"H-019",capacity:70, available_beds:23,occupancy_pct:67.1},
+  {home_name:"Jurong Oakridge Adult Disability Home", home_type:"Adult Disability Homes",    region:"West",       lat:1.34722, lng:103.727984,home_id:"H-020",capacity:96, available_beds:22,occupancy_pct:77.1},
+  {home_name:"Central Lakeside Welfare Home",         home_type:"Welfare Homes",             region:"Central",    lat:1.320167,lng:103.856039,home_id:"H-023",capacity:49, available_beds:10,occupancy_pct:79.6},
+  {home_name:"West Haven Welfare Home",               home_type:"Welfare Homes",             region:"West",       lat:1.332089,lng:103.696434,home_id:"H-025",capacity:49, available_beds:20,occupancy_pct:59.2},
+  {home_name:"Sengkang Maple Welfare Home",           home_type:"Welfare Homes",             region:"North-East", lat:1.391273,lng:103.894519,home_id:"H-027",capacity:97, available_beds:35,occupancy_pct:63.9},
+  {home_name:"Bukit Timah Anchor Welfare Home",       home_type:"Welfare Homes",             region:"Central",    lat:1.312765,lng:103.860124,home_id:"H-028",capacity:101,available_beds:17,occupancy_pct:83.2},
+  {home_name:"Bedok Bridge 2 Welfare Home",           home_type:"Welfare Homes",             region:"East",       lat:1.358168,lng:103.925764,home_id:"H-029",capacity:76, available_beds:33,occupancy_pct:56.6},
+  {home_name:"Yishun Brighton Welfare Home",          home_type:"Welfare Homes",             region:"North",      lat:1.400883,lng:103.830031,home_id:"H-031",capacity:61, available_beds:20,occupancy_pct:67.2},
+  {home_name:"Orchard Anchor Crisis Shelter",         home_type:"Crisis Shelters",           region:"Central",    lat:1.31517, lng:103.846349,home_id:"H-033",capacity:66, available_beds:15,occupancy_pct:77.3},
+  {home_name:"East Maple Crisis Shelter",             home_type:"Crisis Shelters",           region:"East",       lat:1.347673,lng:103.963579,home_id:"H-034",capacity:52, available_beds:22,occupancy_pct:57.7},
+  {home_name:"North Grace Crisis Shelter",            home_type:"Crisis Shelters",           region:"North",      lat:1.416377,lng:103.844282,home_id:"H-036",capacity:74, available_beds:34,occupancy_pct:54.1},
+  {home_name:"Sengkang Spring Crisis Shelter",        home_type:"Crisis Shelters",           region:"North-East", lat:1.38483, lng:103.910834,home_id:"H-037",capacity:94, available_beds:36,occupancy_pct:61.7},
+  {home_name:"Central Starlight Crisis Shelter",      home_type:"Crisis Shelters",           region:"Central",    lat:1.324469,lng:103.860801,home_id:"H-038",capacity:50, available_beds:17,occupancy_pct:66.0},
+  {home_name:"Pasir Ris NewHope Crisis Shelter",      home_type:"Crisis Shelters",           region:"East",       lat:1.366476,lng:103.951742,home_id:"H-039",capacity:67, available_beds:18,occupancy_pct:73.1},
+  {home_name:"Jurong Grace Crisis Shelter",           home_type:"Crisis Shelters",           region:"West",       lat:1.355322,lng:103.717043,home_id:"H-040",capacity:91, available_beds:26,occupancy_pct:71.4},
+  {home_name:"Woodlands NewHope Crisis Shelter",      home_type:"Crisis Shelters",           region:"North",      lat:1.448487,lng:103.836124,home_id:"H-041",capacity:51, available_beds:11,occupancy_pct:78.4},
+  {home_name:"Punggol Lakeside Transitional Shelter", home_type:"Transitional Shelters",     region:"North-East", lat:1.358985,lng:103.884933,home_id:"H-042",capacity:48, available_beds:9, occupancy_pct:81.2},
+  {home_name:"Central Bridge Transitional Shelter",   home_type:"Transitional Shelters",     region:"Central",    lat:1.270559,lng:103.85309, home_id:"H-043",capacity:48, available_beds:6, occupancy_pct:87.5},
+  {home_name:"Yishun Spring Transitional Shelter",    home_type:"Transitional Shelters",     region:"North",      lat:1.410288,lng:103.829445,home_id:"H-046",capacity:42, available_beds:17,occupancy_pct:59.5},
+  {home_name:"Punggol Grace Transitional Shelter",    home_type:"Transitional Shelters",     region:"North-East", lat:1.363452,lng:103.903494,home_id:"H-047",capacity:95, available_beds:22,occupancy_pct:76.8},
+  {home_name:"Central Maple Transitional Shelter",    home_type:"Transitional Shelters",     region:"Central",    lat:1.286865,lng:103.834468,home_id:"H-048",capacity:109,available_beds:25,occupancy_pct:77.1},
+  {home_name:"Bedok Oakridge Transitional Shelter",   home_type:"Transitional Shelters",     region:"East",       lat:1.317829,lng:103.928503,home_id:"H-049",capacity:79, available_beds:13,occupancy_pct:83.5},
+  {home_name:"Woodlands Brighton Transitional",       home_type:"Transitional Shelters",     region:"North",      lat:1.434994,lng:103.82432, home_id:"H-051",capacity:110,available_beds:23,occupancy_pct:79.1},
+  {home_name:"Sengkang Sunrise Youth Home",           home_type:"Youth and Children's Homes",region:"North-East", lat:1.360283,lng:103.91259, home_id:"H-052",capacity:116,available_beds:13,occupancy_pct:88.8},
+  {home_name:"Novena Harbour Youth Home",             home_type:"Youth and Children's Homes",region:"Central",    lat:1.312006,lng:103.84487, home_id:"H-053",capacity:100,available_beds:18,occupancy_pct:82.0},
+  {home_name:"Bedok Oakridge Youth Home",             home_type:"Youth and Children's Homes",region:"East",       lat:1.371884,lng:103.97407, home_id:"H-054",capacity:103,available_beds:21,occupancy_pct:79.6},
+  {home_name:"Serangoon Brighton Youth Home",         home_type:"Youth and Children's Homes",region:"North-East", lat:1.409784,lng:103.899263,home_id:"H-057",capacity:63, available_beds:26,occupancy_pct:58.7},
+  {home_name:"Central Brighton Youth Home",           home_type:"Youth and Children's Homes",region:"Central",    lat:1.308779,lng:103.810358,home_id:"H-058",capacity:96, available_beds:27,occupancy_pct:71.9},
+  {home_name:"Jurong Sunrise Youth Home",             home_type:"Youth and Children's Homes",region:"West",       lat:1.362386,lng:103.7173,  home_id:"H-060",capacity:52, available_beds:23,occupancy_pct:55.8},
+  {home_name:"Mandai Grace Youth Home",               home_type:"Youth and Children's Homes",region:"North",      lat:1.455921,lng:103.837011,home_id:"H-061",capacity:101,available_beds:24,occupancy_pct:76.2}
+];
+
+// ── ENGINE ────────────────────────────────────────────────
+function determineShelterType(c) {
+  if (c.age < 18)              return {type:"Youth and Children's Homes",persona:"Vulnerable Minor",    reason:"Age below 18 — youth protection protocol activated. Requires supervised youth residential environment."};
+  if (c.disability_flag==="Yes") return {type:"Adult Disability Homes",  persona:"Person with Disability",reason:"Confirmed physical disability with no available caregiver. Specialised accessible facility required."};
+  if (c.elderly_flag==="Yes")    return {type:"Sheltered Homes",          persona:"Senior Resident",       reason:"Elderly individual without family support. Long-term sheltered care environment recommended."};
+  if (c.risk_level==="High" && /violence|abuse|danger|safety|risk/i.test(c.issue_summary))
+                                 return {type:"Crisis Shelters",          persona:"Crisis Case",           reason:"High-risk scenario with immediate safety threat. Emergency crisis shelter placement required."};
+  if (c.risk_level==="High")     return {type:"Crisis Shelters",          persona:"High Risk Individual",  reason:"High risk classification mandates immediate crisis shelter assessment."};
+  if (/financial|welfare|distress|self-care/i.test(c.issue_summary))
+                                 return {type:"Welfare Homes",            persona:"Welfare Support Case",  reason:"Financial distress and self-care deficits identified. Welfare home with support services appropriate."};
+  return {type:"Transitional Shelters",persona:"Transitional Case",reason:"Stable homelessness profile. Transitional shelter provides bridge to permanent housing solution."};
+}
+function findBestShelter(shelterType, preferredRegion) {
+  let pool = shelters.filter(s => s.home_type===shelterType && s.occupancy_pct<90 && s.available_beds>0);
+  if (!pool.length) pool = shelters.filter(s => s.home_type===shelterType && s.available_beds>0);
+  const regionMatch = pool.filter(s => s.region===preferredRegion);
+  return [...(regionMatch.length ? regionMatch : pool)].sort((a,b) => b.available_beds - a.available_beds);
+}
+function getConfidence(c, s) {
+  let score = 70;
+  if (s.region===c.preferred_region) score += 15;
+  if (s.available_beds > 15) score += 10;
+  if (s.occupancy_pct < 80) score += 5;
+  return Math.min(score, 99);
+}
+
+// ── TABLE ─────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('request-table-body');
+  tbody.innerHTML = '';
+  candidates.forEach((c, i) => {
+    const iv = i < 2;
+    const tr = document.createElement('tr');
+    tr.className = iv ? 'interactive' : 'static';
+    if (iv) tr.onclick = () => openModal(i);
+    tr.innerHTML = `
+      <td><span class="req-id">${c.request_id}</span></td>
+      <td style="font-weight:600">${c.candidate_name}${iv ? ' <span class="irow-indicator">→</span>' : ''}</td>
+      <td>${c.age}</td>
+      <td style="font-family:var(--font-m);font-size:10px;color:var(--t2)">${c.preferred_region}</td>
+      <td><span class="risk-badge ${c.risk_level.toLowerCase()}">${c.risk_level==='High'?'▲':c.risk_level==='Medium'?'◆':'▼'} ${c.risk_level}</span></td>
+      <td style="color:var(--t2);font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.issue_summary}</td>
+      <td><span class="status-badge">Pending</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── MODAL ─────────────────────────────────────────────────
+let currentCandidate=null, selectedCandidateIdx=0;
+function openModal(idx) {
+  selectedCandidateIdx=idx; currentCandidate=candidates[idx];
+  const c=currentCandidate, t=determineShelterType(c);
+  document.getElementById('panel-candidate-name').textContent=c.candidate_name;
+  document.getElementById('panel-req-id').textContent=`${c.request_id} · ${c.request_timestamp.replace('T',' ')}`;
+  document.getElementById('panel-body-content').innerHTML=`
+    <div class="field-group"><div class="field-label">Candidate Name</div><div class="field-value">${c.candidate_name}</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field-group"><div class="field-label">Age</div><div class="field-value">${c.age}</div></div>
+      <div class="field-group"><div class="field-label">Gender</div><div class="field-value">${c.gender}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field-group"><div class="field-label">Preferred Region</div><div class="field-value accent">${c.preferred_region}</div></div>
+      <div class="field-group"><div class="field-label">Risk Level</div><div class="field-value"><span class="risk-badge ${c.risk_level.toLowerCase()}">${c.risk_level}</span></div></div>
+    </div>
+    <div class="field-group"><div class="field-label">Issue Summary</div><div class="field-value" style="font-size:13px;line-height:1.5">${c.issue_summary}</div></div>
+    <div class="field-group">
+      <div class="field-label">Vulnerability Flags</div>
+      <div class="flags-row">
+        <span class="flag-chip ${c.disability_flag==='Yes'?'yes':'no'}">Disability: ${c.disability_flag}</span>
+        <span class="flag-chip ${c.elderly_flag==='Yes'?'yes':'no'}">Elderly: ${c.elderly_flag}</span>
+        <span class="flag-chip ${c.family_unit_flag==='Yes'?'yes':'no'}">Family Unit: ${c.family_unit_flag}</span>
+      </div>
+    </div>
+    <div class="field-group"><div class="field-label">Expected Shelter Type</div><div class="field-value accent">${c.expected_shelter_type}</div></div>
+    <div class="divider"></div>
+    <div class="field-group"><div class="field-label">Case Notes</div><div class="case-notes-box">${c.case_notes}</div></div>
+    <div class="field-group">
+      <div class="field-label">AI Pre-Assessment</div>
+      <div style="background:var(--accent-bg);border:1px solid rgba(0,200,240,.2);border-radius:var(--r2);padding:12px 14px;font-size:12px;color:var(--t2)">
+        <span style="color:var(--accent);font-weight:700">Predicted Type:</span> ${t.type}<br>
+        <span style="color:var(--accent);font-weight:700">Persona:</span> ${t.persona}
+      </div>
+    </div>`;
+  document.getElementById('detail-modal').classList.add('open');
+}
+function closeModal(e) { if(e.target===document.getElementById('detail-modal')) closeModalDirect(); }
+function closeModalDirect() { document.getElementById('detail-modal').classList.remove('open'); }
+
+// ── AI STEPS ──────────────────────────────────────────────
+const steps = [
+  {name:"Intake Validation",                desc:"Verifying request fields & completeness"},
+  {name:"Risk Assessment",                  desc:"Scoring threat & urgency indicators"},
+  {name:"Age & Vulnerability Screening",    desc:"Applying age-based routing rules"},
+  {name:"Disability Screening",             desc:"Checking accessibility requirements"},
+  {name:"Housing Stability Check",          desc:"Assessing long-term housing profile"},
+  {name:"Candidate Persona Classification", desc:"Generating vulnerability persona"},
+  {name:"Shelter Type Recommendation",      desc:"Matching to appropriate shelter category"},
+  {name:"Best Shelter Matching",            desc:"Scanning 61 shelters against criteria"},
+  {name:"Capacity Check",                   desc:"Verifying bed availability & occupancy"},
+  {name:"Final Recommendation",             desc:"Compiling placement decision package"}
+];
+const thinkLines = [
+  c=>[`> INIT id:${c.request_id}`,`> parsing profile…`,`> validation: PASS`],
+  c=>[`> risk_level:"${c.risk_level}"`,`> keyword_scan: ${c.risk_level==='High'?'THREAT_DETECTED':'LOW'}`,`> urgency: ${c.risk_level==='High'?'CRITICAL':'MODERATE'}`],
+  c=>[`> age:${c.age}`,`> minor:${c.age<18}`,`> elderly_flag:${c.elderly_flag}`],
+  c=>[`> disability_flag:${c.disability_flag}`,c.disability_flag==='Yes'?'> ROUTING → Adult Disability Homes':'> no disability routing'],
+  c=>[`> family_unit:${c.family_unit_flag}`,`> stability:${c.risk_level==='High'?'CRITICAL':'STABLE'}`],
+  c=>{ const t=determineShelterType(c); return [`> persona → "${t.persona}"`,`> confidence: HIGH`]; },
+  c=>{ const t=determineShelterType(c); return [`> recommended_type:"${t.type}"`,`> type_conf:97.${Math.floor(Math.random()*9)}%`]; },
+  c=>{ const t=determineShelterType(c); const m=findBestShelter(t.type,c.preferred_region); return [`> scanning shelter_db…`,`> type_match:${m.length}`,`> region_match:${m.filter(s=>s.region===c.preferred_region).length} in ${c.preferred_region}`]; },
+  c=>{ const t=determineShelterType(c); const b=findBestShelter(t.type,c.preferred_region)[0]; return b?[`> top:"${b.home_name}"`,`> beds:${b.available_beds}`,`> occ:${b.occupancy_pct}%`]:[`> capacity check complete`]; },
+  c=>{ const t=determineShelterType(c); const b=findBestShelter(t.type,c.preferred_region)[0]; return b?[`> RECOMMENDATION READY`,`> shelter:"${b.home_name}"`,`> confidence:${getConfidence(c,b)}%`]:[`> RECOMMENDATION READY`]; }
+];
+
+function triggerAIFromTable() { selectedCandidateIdx=0; currentCandidate=candidates[0]; startAIEngine(); }
+function triggerAIFromPanel() { closeModalDirect(); startAIEngine(); }
+function startAIEngine() {
+  const c=currentCandidate;
+  document.getElementById('engine-candidate-display').textContent=`${c.candidate_name} · ${c.request_id}`;
+  document.getElementById('steps-list').innerHTML=steps.map((s,i)=>`
+    <div class="step-item" id="step-${i}">
+      <div class="step-number">${String(i+1).padStart(2,'0')}</div>
+      <div class="step-content">
+        <div class="step-name">${s.name}</div>
+        <div class="step-desc">${s.desc}</div>
+      </div>
+      <div class="step-loader"></div>
+      <div class="step-check">✓</div>
+    </div>`).join('');
+  document.getElementById('candidate-data-items').innerHTML=[
+    {k:'Name',v:c.candidate_name,cls:''},
+    {k:'Age',v:c.age,cls:'acc'},
+    {k:'Region',v:c.preferred_region,cls:'acc'},
+    {k:'Risk',v:c.risk_level,cls:c.risk_level==='High'?'red':c.risk_level==='Medium'?'amb':'grn'},
+    {k:'Disability',v:c.disability_flag,cls:c.disability_flag==='Yes'?'amb':''},
+    {k:'Elderly',v:c.elderly_flag,cls:c.elderly_flag==='Yes'?'amb':''},
+    {k:'Family Unit',v:c.family_unit_flag,cls:c.family_unit_flag==='Yes'?'acc':''},
+  ].map(d=>`<div class="data-item"><span class="dk">${d.k}</span><span class="dv ${d.cls}">${d.v}</span></div>`).join('');
+  document.getElementById('decision-card').style.display='none';
+  document.getElementById('thinking-stream').innerHTML='<div style="color:var(--t3)">Initialising…</div>';
+  showPage('page-engine');
+  runStepAnimation(c);
+}
+async function runStepAnimation(c) {
+  const pf=document.getElementById('overall-progress-fill');
+  const ts=document.getElementById('thinking-stream');
+  for(let i=0;i<steps.length;i++) {
+    if(i>0) document.getElementById(`step-${i-1}`).className='step-item done';
+    document.getElementById(`step-${i}`).className='step-item active';
+    pf.style.width=`${((i+1)/steps.length)*100}%`;
+    ts.innerHTML='';
+    for(const line of thinkLines[i](c)) {
+      await sleep(175);
+      const d=document.createElement('div');
+      d.className='thinking-line'+(line.includes('READY')||line.includes('PASS')||line.includes('HIGH')?' grn':line.includes('THREAT')||line.includes('CRITICAL')?' red':' acc');
+      d.textContent=line;
+      ts.appendChild(d);
+    }
+    if(i>=6) {
+      const t=determineShelterType(c);
+      const b=findBestShelter(t.type,c.preferred_region)[0];
+      const dc=document.getElementById('decision-card');
+      dc.style.display='block';
+      document.getElementById('decision-data-items').innerHTML=[
+        {k:'Shelter Type',v:t.type.split(' ')[0],cls:'acc'},
+        {k:'Persona',v:t.persona,cls:'amb'},
+        b?{k:'Top Match',v:b.home_name.split(' ').slice(0,2).join(' '),cls:'grn'}:null,
+        b?{k:'Beds Avail',v:b.available_beds,cls:'grn'}:null,
+        b?{k:'Occupancy',v:b.occupancy_pct+'%',cls:b.occupancy_pct>80?'amb':'grn'}:null,
+      ].filter(Boolean).map(d=>`<div class="data-item"><span class="dk">${d.k}</span><span class="dv ${d.cls}">${d.v}</span></div>`).join('');
+    }
+    await sleep(i===9?580:680+Math.random()*380);
+  }
+  document.getElementById(`step-${steps.length-1}`).className='step-item done';
+  pf.style.width='100%';
+  await sleep(580);
+  showResult(c);
+}
+
+// ── RESULT ────────────────────────────────────────────────
+let leafletMap=null;
+function showResult(c) {
+  const t=determineShelterType(c);
+  const matched=findBestShelter(t.type,c.preferred_region);
+  const best=matched[0];
+  const alts=matched.slice(1,4);
+  const conf=best?getConfidence(c,best):85;
+  document.getElementById('result-name').textContent=c.candidate_name;
+  document.getElementById('result-grid').innerHTML=`
+    <div class="result-main-card">
+      <div class="persona-tag">👤 ${t.persona}</div>
+      <div class="shelter-type-label">Recommended Shelter Type</div>
+      <div class="shelter-name">${best?best.home_name:'No Match Found'}</div>
+      <div class="shelter-region">📍 ${best?best.region:'—'} Region · ${t.type}</div>
+      <div class="shelter-stats">
+        <div class="stat-box"><div class="stat-box-label">Available Beds</div><div class="stat-box-val green">${best?best.available_beds:0}</div></div>
+        <div class="stat-box"><div class="stat-box-label">Occupancy Rate</div><div class="stat-box-val">${best?best.occupancy_pct:0}%</div></div>
+        <div class="stat-box"><div class="stat-box-label">Capacity</div><div class="stat-box-val">${best?best.capacity:0}</div></div>
+        <div class="stat-box"><div class="stat-box-label">AI Confidence</div><div class="stat-box-val green">${conf}%</div></div>
+      </div>
+      <div class="confidence-bar-wrap">
+        <div class="confidence-label"><span>Placement Confidence Score</span><span style="color:var(--green);font-weight:700">${conf}%</span></div>
+        <div class="confidence-bar"><div class="confidence-fill" id="conf-fill"></div></div>
+      </div>
+      <div class="reason-box">
+        <div class="reason-title">Why This Recommendation</div>
+        <div class="reason-text">
+          <strong>${t.reason}</strong><br><br>
+          ${best&&best.region===c.preferred_region?`✓ Preferred region match (${c.preferred_region}).`:`⚠ Best option outside preferred region — no capacity in ${c.preferred_region}.`}
+          ${best&&best.available_beds>10?` ✓ Adequate bed availability (${best.available_beds} beds).`:''}
+          ${best&&best.occupancy_pct<85?` ✓ Healthy occupancy rate (${best.occupancy_pct}%).`:''}
+        </div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div class="map-header">
+        <div><div class="map-title">Shelter Location</div><div class="map-subtitle">Interactive · ${best?best.home_id:'—'}</div></div>
+        <span class="live-pill"><div class="live-dot"></div>LIVE</span>
+      </div>
+      <div id="shelter-map"></div>
+    </div>
+    <div class="alternates-card">
+      <div class="alt-title">Alternate Shelter Options <span style="font-size:12px;color:var(--t3);font-weight:400">(same type, available beds)</span></div>
+      <div class="alt-grid">
+        ${alts.map(s=>`
+          <div class="alt-item">
+            <div class="alt-item-name">${s.home_name}</div>
+            <div class="alt-item-region">📍 ${s.region} · ${s.home_id}</div>
+            <div class="alt-item-beds">${s.available_beds}</div>
+            <div class="alt-item-beds-label">available beds</div>
+            <div class="occ-bar-wrap">
+              <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:4px"><span>Occupancy</span><span>${s.occupancy_pct}%</span></div>
+              <div class="occ-bar"><div class="occ-fill ${s.occupancy_pct>85?'warn':'ok'}" style="width:${s.occupancy_pct}%"></div></div>
+            </div>
+          </div>`).join('')}
+        ${!alts.length?'<div style="color:var(--t3);font-size:13px;grid-column:1/-1">No additional alternatives available.</div>':''}
+      </div>
+    </div>`;
+  showPage('page-result');
+  setTimeout(()=>{ const f=document.getElementById('conf-fill'); if(f) f.style.width=conf+'%'; },300);
+  if(best) setTimeout(()=>initMap(best,alts),400);
+}
+function initMap(primary,alts) {
+  if(leafletMap){ leafletMap.remove(); leafletMap=null; }
+  leafletMap=L.map('shelter-map',{center:[primary.lat,primary.lng],zoom:13,zoomControl:false,attributionControl:false});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(leafletMap);
+  const primaryIcon=L.divIcon({
+    className:'',
+    html:`<div style="width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--violet));border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid rgba(0,200,240,.45);box-shadow:0 0 18px rgba(0,200,240,.55)"></div>`,
+    iconSize:[34,34],iconAnchor:[17,34]
+  });
+  const altIcon=L.divIcon({
+    className:'',
+    html:`<div style="width:20px;height:20px;background:var(--violet-bg);border:2px solid rgba(157,127,252,.45);border-radius:50%;box-shadow:0 0 8px rgba(157,127,252,.28)"></div>`,
+    iconSize:[20,20],iconAnchor:[10,10]
+  });
+  L.marker([primary.lat,primary.lng],{icon:primaryIcon}).addTo(leafletMap)
+    .bindPopup(`<div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:var(--accent)">${primary.home_name}</div>
+      <div style="font-size:11px;color:var(--t2)">📍 ${primary.region} · ${primary.home_id}</div>
+      <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div><div style="font-size:9px;color:var(--t3);text-transform:uppercase">Beds</div><div style="font-size:16px;font-weight:800;color:var(--green)">${primary.available_beds}</div></div>
+        <div><div style="font-size:9px;color:var(--t3);text-transform:uppercase">Occupancy</div><div style="font-size:16px;font-weight:800;color:var(--t1)">${primary.occupancy_pct}%</div></div>
+      </div>
+      <div style="margin-top:8px;background:var(--bg2);border-radius:6px;padding:5px 8px;font-size:10px;color:var(--accent);font-weight:700">⭐ RECOMMENDED PLACEMENT</div>
+    </div>`,{maxWidth:220}).openPopup();
+  alts.forEach(s=>L.marker([s.lat,s.lng],{icon:altIcon}).addTo(leafletMap).bindPopup(`
+    <div>
+      <div style="font-size:12px;font-weight:700;margin-bottom:3px">${s.home_name}</div>
+      <div style="font-size:10px;color:var(--t2)">📍 ${s.region} · ${s.available_beds} beds</div>
+    </div>`));
+  L.control.zoom({position:'bottomright'}).addTo(leafletMap);
+}
+
+// ── NAV ───────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+function goBack() {
+  if(leafletMap){ leafletMap.remove(); leafletMap=null; }
+  showPage('page-dashboard');
+}
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+
+
+
+
+
+
+// ── CURSOR ────────────────────────────────────────────────
+(function(){
+  const orb  = document.getElementById('c-orb');
+  let mx=window.innerWidth/2, my=window.innerHeight/2;
+  let idleTimer=null, isIdle=false;
+
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    orb.style.left = mx+'px'; orb.style.top = my+'px';
+    if(isIdle){ isIdle=false; orb.style.animation=''; }
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(()=>{ isIdle=true; orb.style.animation='orb-idle-pulse 2s ease-in-out infinite'; }, 1400);
+  });
+
+  // Hover: expand orb + ring, intensify glow
+  document.querySelectorAll('button,.kpi-card,tr.interactive,.alt-item,.close-btn,.back-btn').forEach(el => {
+    el.addEventListener('mouseenter', ()=>{
+      orb.style.width='20px'; orb.style.height='20px';
+      orb.style.boxShadow='0 0 18px 4px rgba(26,159,212,0.9),0 0 40px 8px rgba(26,159,212,0.45)';
+      ring.style.width='52px';
+
+    });
+    el.addEventListener('mouseleave', ()=>{
+      orb.style.width='14px'; orb.style.height='14px';
+      orb.style.boxShadow='0 0 10px 2px rgba(26,159,212,0.7),0 0 22px 4px rgba(26,159,212,0.3)';
+      ring.style.width='34px';
+
+    });
+  });
+
+  document.addEventListener('mousedown', ()=>{ orb.style.width='9px'; orb.style.height='9px'; });
+  document.addEventListener('mouseup',   ()=>{ orb.style.width='14px'; orb.style.height='14px'; });
+})();
+
+
+function togglePass(){
+  const p = document.getElementById('login-pass');
+  p.type = p.type === 'password' ? 'text' : 'password';
+}
+
+function doLogin(){
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn-text');
+  if(u === 'admin' && p === 'admin'){
+    btn.textContent = '✓ Authenticated';
+    document.getElementById('login-user').closest('div').style.borderColor='rgba(0,196,122,0.4)';
+    setTimeout(()=>{
+      showPage('page-dashboard');
+    }, 600);
+  } else {
+    err.style.display = 'block';
+    const card = err.closest('div[style*="border-radius"]');
+    card.style.animation = 'shake .35s ease';
+    setTimeout(()=>{ card.style.animation=''; }, 350);
+  }
+}
+
+renderTable();
+
+/* ====================================================================
+ * Salesforce Integration Bridge
+ * --------------------------------------------------------------------
+ * When the page is launched from Salesforce (via window.open from the
+ * placementEngineLauncher LWC), the integration:
+ *   1. Skips the admin/admin login screen.
+ *   2. Receives the candidate and shelter list via window.postMessage.
+ *   3. Overwrites the embedded arrays so the existing engine logic
+ *      works unchanged against live Salesforce data.
+ *   4. Adds a "Confirm Placement -> Salesforce" button to the result
+ *      panel that echoes the engine's decision back to the LWC.
+ *
+ * Standalone usage (the admin/admin login flow) is preserved when the
+ * page is opened directly without a window.opener.
+ *
+ * Author: Accenture Salesforce Innovation Team
+ * ================================================================== */
+(function initSalesforceBridge(){
+  var SF_HOST_PATTERN = /\.(lightning\.force\.com|my\.salesforce\.com|force\.com)$/;
+  var state = { sfMode: false, openerOrigin: null, nonce: null, candidate: null };
+
+  function hostAllowed(origin){
+    try { return SF_HOST_PATTERN.test(new URL(origin).hostname); }
+    catch (e) { return false; }
+  }
+
+  function announceReady(){
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: 'PE_READY' }, '*');
+      }
+    } catch (e) { /* opener may have closed */ }
+  }
+
+  function applyContext(payload, origin){
+    state.openerOrigin = origin;
+    state.nonce        = payload.nonce || null;
+    state.candidate    = payload.candidate;
+
+    candidates = [{
+      request_id:           payload.candidate.request_id,
+      candidate_name:       payload.candidate.full_name || 'Candidate',
+      age:                  payload.candidate.age,
+      gender:               'N/A',
+      preferred_region:     payload.candidate.preferred_region,
+      issue_summary:        payload.candidate.issue_summary || '',
+      risk_level:           payload.candidate.risk_level || 'Medium',
+      disability_flag:      payload.candidate.disability_flag ? 'Yes' : 'No',
+      elderly_flag:         payload.candidate.elderly_flag ? 'Yes' : 'No',
+      family_unit_flag:     'No',
+      expected_shelter_type:'AI Determined',
+      request_timestamp:    new Date().toISOString(),
+      case_notes:           payload.candidate.issue_summary || ''
+    }];
+    shelters = (payload.shelters || []).map(function(s){
+      return {
+        home_name:      'Shelter ' + s.home_id,
+        home_type:      s.home_type,
+        region:         s.region,
+        lat:            s.lat,
+        lng:            s.lng,
+        home_id:        s.home_id,
+        sf_id:          s.sf_id,
+        capacity:       s.capacity,
+        available_beds: s.available_beds,
+        occupancy_pct:  s.occupancy_pct
+      };
+    });
+    renderTable();
+    selectedCandidateIdx = 0;
+    currentCandidate     = candidates[0];
+    setTimeout(function(){ startAIEngine(); }, 250);
+  }
+
+  function sendSelection(){
+    if (!state.openerOrigin) return;
+    var t    = determineShelterType(currentCandidate);
+    var best = findBestShelter(t.type, currentCandidate.preferred_region)[0];
+    if (!best || !best.sf_id) {
+      alert('No matching Salesforce shelter could be identified.');
+      return;
+    }
+    var conf = getConfidence(currentCandidate, best);
+    window.opener.postMessage({
+      type:               'PLACEMENT_SELECTED',
+      shelterHomeId:      best.sf_id,
+      homeExternalId:     best.home_id,
+      confidence:         conf,
+      candidateRequestId: state.candidate.request_id,
+      nonce:              state.nonce
+    }, state.openerOrigin);
+    var btn = document.getElementById('sf-confirm-btn');
+    if (btn) {
+      btn.textContent = 'Sent to Salesforce - you may close this window';
+      btn.disabled    = true;
+      btn.style.opacity = '0.7';
+    }
+  }
+
+  function injectConfirmButton(){
+    if (!state.sfMode) return;
+    var grid = document.getElementById('result-grid');
+    if (!grid || grid.dataset.sfInjected === '1') return;
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'grid-column:1/-1;margin-top:18px;display:flex;justify-content:center';
+    wrap.innerHTML = '<button id="sf-confirm-btn" '
+      + 'style="background:linear-gradient(135deg,#00c47a,#1a9fd4);color:#fff;'
+      + 'border:none;border-radius:8px;padding:14px 32px;font-size:14px;'
+      + 'font-weight:700;letter-spacing:0.04em;cursor:pointer;'
+      + 'text-transform:uppercase;font-family:var(--font-m,monospace);'
+      + 'box-shadow:0 6px 18px rgba(0,196,122,0.35)">'
+      + 'Confirm Placement -> Salesforce</button>';
+    grid.appendChild(wrap);
+    grid.dataset.sfInjected = '1';
+    document.getElementById('sf-confirm-btn').addEventListener('click', sendSelection);
+  }
+
+  /* Wrap showResult so the confirm button is appended after the engine
+     finishes rendering its recommendation. */
+  var originalShowResult = window.showResult || showResult;
+  window.showResult = function(c){
+    originalShowResult(c);
+    injectConfirmButton();
+  };
+
+  /* postMessage receiver. */
+  window.addEventListener('message', function(event){
+    if (!hostAllowed(event.origin)) return;
+    var data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'PE_CONTEXT') applyContext(data, event.origin);
+  });
+
+  /* Bootstrap: detect Salesforce launch and skip the login screen. */
+  function bootstrap(){
+    if (window.opener && !window.opener.closed) {
+      state.sfMode = true;
+      if (typeof showPage === 'function') showPage('page-dashboard');
+      announceReady();
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrap);
+  } else {
+    bootstrap();
+  }
+})();
+</script>
+</body>
+</html>
