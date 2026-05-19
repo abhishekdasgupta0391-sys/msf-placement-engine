@@ -1621,8 +1621,17 @@ renderTable();
         sendAck(event.origin);
         return;
       }
+      var inner = data;
+      if (typeof data.json === 'string') {
+        try {
+          inner = JSON.parse(data.json);
+        } catch (parseErr) {
+          console.error('[Placement Engine] failed to parse PE_CONTEXT json:', parseErr);
+          return;
+        }
+      }
       contextApplied = true;
-      applyContext(data, event.origin);
+      applyContext(inner, event.origin);
       sendAck(event.origin);
     }
   });
