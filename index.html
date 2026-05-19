@@ -1478,10 +1478,22 @@ renderTable();
       request_timestamp:    new Date().toISOString(),
       case_notes:           payload.candidate.issue_summary || ''
     }];
+    /* Map Salesforce singular shelter type values to the plural form the
+       placement engine logic expects ("Sheltered Home" -> "Sheltered Homes",
+       etc.). Keeping the engine functions unchanged means standalone use
+       still works against the original mock data. */
+    var TYPE_MAP = {
+      'Sheltered Home':         'Sheltered Homes',
+      'Adult Disability Home':  'Adult Disability Homes',
+      'Crisis Shelter':         'Crisis Shelters',
+      'Welfare Home':           'Welfare Homes',
+      'Transitional Home':      'Transitional Shelters',
+      "Youth/Children's Home":  "Youth and Children's Homes"
+    };
     shelters = (payload.shelters || []).map(function(s){
       return {
         home_name:      'Shelter ' + s.home_id,
-        home_type:      s.home_type,
+        home_type:      TYPE_MAP[s.home_type] || s.home_type,
         region:         s.region,
         lat:            s.lat,
         lng:            s.lng,
